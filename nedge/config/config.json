@@ -1,0 +1,17 @@
+{
+	"client": {
+		"host": "10.10.10.1",
+		"username": "username",
+		"password": "password",
+		"filename": "FILE_4G",
+		"pathfrom": "/root/",
+		"pathto": "/root/test/",
+		"runtimes": 1
+	},
+	"server": {
+		"host": "10.10.10.2",
+		"username": "username",
+		"password": "password",
+		"service_name": "test1"
+	}
+}
