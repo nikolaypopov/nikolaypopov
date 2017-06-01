@@ -63,7 +63,7 @@ def cleanup():
         # If file exists we try to delete it
         if filename in cout:
                 out.colorPrint('Found file you trying to copy, initiating cleanup ...', 'r')
-                rc, cout = client.run('rm {}{}'.format(pathto, filename))
+                rc, cout = client.run('rm {}/{}'.format(pathto, filename))
                 if rc != 0:
                         out.colorPrint('Cleanup has failed', 'r')
 			out.colorPrint('ReturnCode: %s' % rc, 'r')
@@ -83,23 +83,22 @@ def getSize(path):
 	# Connecting to MUT
 	client = SSHClient(client_host, client_username, client_password)
 
-	rc, cout = client.run('ls -la {}{}'.format(path, filename))
+	rc, cout = client.run('ls -la {}/{}'.format(path, filename))
 	text = re.split('\n', cout)
 
 	if rc != 0:
-		out.colorPrint('Failed to execute \"ls -la {}{}\" command'.format(path, filename), 'r')
+		out.colorPrint('Failed to execute \"ls -la {}/{}\" command'.format(path, filename), 'r')
 		out.colorPrint('ReturnCode: %s' % rc, 'r')
 		out.colorPrint('Error: %s' % cout, 'r')
 		exit(1)
 
 	# Searching for size of file
 	for line in text:
-		#print cout
-		match = re.search('\S+\s+1\s+\S+\s\S+\s(\d+)\s+\S+\s+\S+\s+\S+\s+{}{}'.format(path, filename), line)
+		match = re.search('\S+\s+1\s+\S+\s\S+\s(\d+)\s+\S+\s+\S+\s+\S+\s+{}/{}'.format(path, filename), line)
 		if match:
 			return match.group(1)
 		else:
-			print out.colorPrint('Couldn\'t match regex to find size of {}{}'.format(path, filename), 'r')
+			print out.colorPrint('Couldn\'t match regex to find size of {}/{}'.format(path, filename), 'r')
 			exit(1)
 
 def failover():
@@ -150,7 +149,7 @@ def failover():
 
 	copyFrom = getSize(pathfrom)
 	r = 0
-	print 'WAITING FOR FAILOVER: Comparing sizes of {}{} and {}{}'.format(pathfrom, filename, pathto, filename)
+	print 'WAITING FOR FAILOVER: Comparing sizes of {}/{} and {}/{}'.format(pathfrom, filename, pathto, filename)
 	while r == 0:
 		time.sleep(3)
 		copyTo = getSize(pathto)
@@ -181,7 +180,7 @@ def copy_file():
 
         # Copy file to directory
         print 'Copying {} to {} ...'.format(filename, pathto)
-        rc, cout = client.run('cp {}{} {}.'.format(pathfrom, filename, pathto))
+        rc, cout = client.run('cp {}/{} {}/.'.format(pathfrom, filename, pathto))
 
         # Check if the file is in the directory
         rc, cout = client.run('ls -lah {}'.format(pathto))
@@ -196,18 +195,13 @@ def copy_file():
                 out.colorPrint('Error: %s' % cout, 'r')
                 exit(1)
 
-#        if filename in cout:
-#                out.colorPrint('File was copyed successfully\n', 'g')
-#        else:
-#                out.colorPrint('Error: File was not copyed\n', 'r')
-
 def check_diff():
 	# Connection to MUT
 	client = SSHClient(client_host, client_username, client_password)
 
         # Checking diff
-	print 'Checking diff between files {}{} and {}{}'.format(pathfrom, filename, pathto, filename)
-        rc, cout = client.run('diff {}{} {}{}'.format(pathfrom, filename, pathto, filename))
+	print 'Checking diff between files {}/{} and {}/{}'.format(pathfrom, filename, pathto, filename)
+        rc, cout = client.run('diff {}/{} {}/{}'.format(pathfrom, filename, pathto, filename))
 
 	if rc == None:
 		out.colorPrint('ERROR: Unknown Error', 'r')
@@ -226,7 +220,7 @@ def delete_file():
 
         # Delete file from directory
         print 'Deleting {} from {} ...'.format(filename, pathto)
-        rc, cout = client.run('rm {}{}'.format(pathto, filename))
+        rc, cout = client.run('rm {}/{}'.format(pathto, filename))
 
         # Check if the file was actually removed from the directory
         rc, cout = client.run('ls -1 {}'.format(pathto))
@@ -269,7 +263,7 @@ def run1():
 		client = SSHClient(client_host, client_username, client_password)
 
 		# Search for cp process
-		rc, cout = client.run('ps -ef | grep cp {}{}'.format(pathto, filename))
+		rc, cout = client.run('ps -ef | grep cp {}/{}'.format(pathto, filename))
 		text = re.split('\n', cout)
 
 		for line in text:
@@ -321,7 +315,7 @@ def run2():
 		client = SSHClient(client_host, client_username, client_password)
 
 		# Delete file from directory
-        	rc, cout = client.run('ps -ef | grep cp {}{}'.format(pathto, filename))
+        	rc, cout = client.run('ps -ef | grep cp {}/{}'.format(pathto, filename))
 		text = re.split('\n', cout)
 
 		for line in text:

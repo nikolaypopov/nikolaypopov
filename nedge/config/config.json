@@ -3,15 +3,27 @@
 		"host": "10.10.10.1",
 		"username": "username",
 		"password": "password",
-		"filename": "FILE_4G",
-		"pathfrom": "/root/",
-		"pathto": "/root/test/",
+		"filename": "testfile",
+		"pathfrom": "/root",
+		"pathto": "/root/test",
 		"runtimes": 1
 	},
 	"server": {
 		"host": "10.10.10.2",
 		"username": "username",
 		"password": "password",
-		"service_name": "test1"
+		"service_name": "test",
+		"quorumnode": "quorum-node",
+		"node1": "test-node-1",
+		"node2": "test-node-2",
+		"vip": "20.20.20.3",
+		"client_net": "client-net",
+		"client_net_ip1": "20.20.20.1",
+		"client_net_ip2": "20.20.20.2",
+		"cluster": "testcl",
+		"tenant": "testtn",
+		"bucket": "testbk",
+		"lun_name": "testlun",
+		"lun_size": ["100", "GB"]
 	}
 }
