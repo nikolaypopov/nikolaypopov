@@ -1,3 +1,15 @@
+"""
+
+This script will perform the following:
+
+1) Cleanup already existing test environment
+2) Create nedge iSCSI HA service on nedge server
+3) Discover and mount iSCSI LUN on ubuntu client
+
+Written by Nikolay Popov
+
+"""
+
 import re, time, sys, json
 
 from multiprocessing import Process
@@ -16,19 +28,19 @@ neadm_host = cfg['server']['host']
 neadm_username = cfg['server']['username']
 neadm_password = cfg['server']['password']
 service_name = cfg['server']['service_name']
-nedge_quorum = 'nedge-201'
-nedge_node1 = 'nedge-202'
-nedge_node2 = 'nedge-204'
-nedge_vip = '20.20.20.50'
-client_net_name = 'client-net'
-client_net_ip1 = '20.20.20.12'
-client_net_ip2 = '20.20.20.14'
+nedge_quorum = cfg['server']['quorumnode']
+nedge_node1 = cfg['server']['node1']
+nedge_node2 = cfg['server']['node2']
+nedge_vip = cfg['server']['vip']
+client_net_name = cfg['server']['client_net']
+client_net_ip1 = cfg['server']['client_net_ip1']
+client_net_ip2 = cfg['server']['client_net_ip2']
 
-cluster_name = 'kokac'
-tenant_name = 'kokat'
-bucket_name = 'kokab'
-lun_name = 'testlun'
-lun_size = ['66', 'GB']
+cluster_name = cfg['server']['cluster']
+tenant_name = cfg['server']['tenant']
+bucket_name = cfg['server']['bucket']
+lun_name = cfg['server']['lun_name']
+lun_size = cfg['server']['lun_size']
 
 client_host = cfg['client']['host']
 client_username = cfg['client']['username']
@@ -43,21 +55,22 @@ out = Output()
 def cleanup_ctb():
 	client = SSHClient(neadm_host, neadm_username, neadm_password)
 
+	print 'Checking if cleanup cluster is needed ...'
+
 	rc, cout = client.run('/neadm/neadm cluster list')
 	if cluster_name in cout:
 		out.colorPrint('Found cluster, preparing to cleanup', 'r')
 
-		print 'Deleting cluster, tenant and bucket ...'
 		rc, cout = client.run('/neadm/neadm bucket delete {}/{}/{}'.format(cluster_name, tenant_name, bucket_name))
 		print cout
 
 		rc, cout = client.run('/neadm/neadm tenant delete {}/{}'.format(cluster_name, tenant_name))
 		print cout
 
-		rc, cout = client.run('/neadm/neadm cluster delete %s' % cluster_name)
+		rc, cout = client.run('/neadm/neadm cluster delete {}'.format(cluster_name))
 		print cout
 	else:
-		out.colorPrint('Cleanup is not needed\n', 'g')
+		out.colorPrint('Cleanup cluster is not needed\n', 'g')
 
 def cleanup_service():
 	client = SSHClient(neadm_host, neadm_username, neadm_password)
@@ -82,55 +95,93 @@ def cleanup_service():
 
 		out.colorPrint('Cleanup has finished successfully\n', 'g')
 	else:
-		out.colorPrint('Cleanup service not needed\n', 'g')
+		out.colorPrint('Cleanup service is not needed\n', 'g')
 
 def cleanup_client():
 	client = SSHClient(client_host, client_username, client_password)
+	cl = 'yes'
 
-	rc, cout = client.run('umount %s' % pathto)
-	print cout
+	print 'Checking if cleanup client is needed ...'
 
-	rc, cout = client.run('rm -r %s' % pathto)
-	print cout
+	rc, cout = client.run('mount')
+	text = re.split('\n', cout)
+	for line in text:
+		if pathto in line:
+			print line
+			match = re.search('(\S+)\s+on\s+({})\s+\w+\s+\w+\s+\S+'.format(pathto), line)
+			if match:
+				out.colorPrint('Found LUN \"{}\" mounted onto test filesystem \"{}\", cleanup is needed'.format(match.group(1), match.group(2)), 'r')
+				exit(1)
+				rc, cout = client.run('umount %s' % pathto)
+				print cout
 
-        rc, cout = client.run('iscsiadm -m node')
-        print cout
-        text = re.split('\n', cout)
-	portal = ''
-	targetname = ''
-        for line in text:
-                if nedge_vip in line:
-                        match = re.search('({}:\d+),\S+\s+(\S+)'.format(nedge_vip), line)
-                        if match:
-                                portal = match.group(1)
-                                targetname = match.group(2)
-                        else:
-                                print 'Couldn\'t match'
-                                exit(1)
+				rc, cout = client.run('rm -r %s' % pathto)
+				print cout
 
-        print 'Portal: %s' % portal
-        print 'IQN: %s' % targetname
+			        rc, cout = client.run('iscsiadm -m node')
+			        print cout
+			        text = re.split('\n', cout)
+				portal = ''
+				targetname = ''
+			        for line in text:
+					if nedge_vip in line:
+						match = re.search('({}:\d+),\S+\s+(\S+)'.format(nedge_vip), line)
+			                        if match:
+							portal = match.group(1)
+							targetname = match.group(2)
+						else:
+							print 'Couldn\'t match'
+							exit(1)
 
+				print 'Portal: %s' % portal
+				print 'IQN: %s' % targetname
 
-	rc, cout = client.run('iscsiadm -m node --targetname {} --portal {} --logout'.format(targetname, portal))
-	print cout
+				rc, cout = client.run('iscsiadm -m node --targetname {} --portal {} --logout'.format(targetname, portal))
+				print cout
 
-	rc, cout = client.run('iscsiadm -m node -o delete --targetname {} --portal {}'.format(targetname, portal))
-	print cout
+				rc, cout = client.run('iscsiadm -m node -o delete --targetname {} --portal {}'.format(targetname, portal))
+				print cout
+
+				cl = 'no'
+			else:
+				out.colorPrint('Couldn\'t match mounted filesystem name', 'r')
+				exit(1)
+	if cl == 'yes':
+		out.colorPrint('Cleanup client is not needed\n', 'g')
+
 
 def create_ctb():
 	# Connecting to MUT
 	client = SSHClient(neadm_host, neadm_username, neadm_password)
 
 	# Show service to get information about preferred node and list of nodes that are in the service
-	rc, cout = client.run('/neadm/neadm cluster create %s' % cluster_name)
-	print cout
+	rc, cout = client.run('/neadm/neadm cluster create {}'.format(cluster_name))
+        if rc != 0:
+                print cout
+                out.colorPrint('Couldn\'t create cluster {}'.format(cluster_name), 'r')
+                exit(1)
+        print cout
+        out.colorPrint('Cluster {} was successfully created'.format(cluster_name),'g')
+
+	time.sleep(2)
 
 	rc, cout = client.run('/neadm/neadm tenant create {}/{}'.format(cluster_name, tenant_name))
-	print cout
+        if rc != 0:
+                print cout
+                out.colorPrint('Couldn\'t create tenant {}/{}'.format(cluster_name, tenant_name), 'r')
+                exit(1)
+        print cout
+        out.colorPrint('Tenant {}/{} was successfully created'.format(cluster_name, tenant_name),'g')
+
+	time.sleep(2)
 
 	rc, cout = client.run('/neadm/neadm bucket create {}/{}/{}'.format(cluster_name, tenant_name, bucket_name))
-	print cout
+        if rc != 0:
+                print cout
+                out.colorPrint('Couldn\'t create bucket {}/{}/{}'.format(cluster_name, tenant_name, bucket_name), 'r')
+                exit(1)
+        print cout
+        out.colorPrint('Bucket {}/{}/{} was successfully created'.format(cluster_name, tenant_name, bucket_name),'g')
 
 def create_service():
 	client = SSHClient(neadm_host, neadm_username, neadm_password)
@@ -186,7 +237,7 @@ def mount_iscsi_lun():
 		print cout
 		out.colorPrint('Error: unable to find iSCSI target via IP: %s' % nedge_vip, 'r')
 		exit(1)
-	out.colorPrint('Successfully discovered target via %s' % nedge_vip, 'g')
+	out.colorPrint('Successfully discovered target via %s\n' % nedge_vip, 'g')
 
 	text = re.split('\n', cout)
 	portal = ''
@@ -225,7 +276,7 @@ def mount_iscsi_lun():
 				print 'Couldn\'t match'
 				exit(1)
 
-	out.colorPrint('Found iSCSI LUN, disk name is %s' % diskname, 'g')
+	out.colorPrint('Found iSCSI LUN, disk name is %s\n' % diskname, 'g')
 
 	rc, cout = client.run('mkfs.ext4 %s' % diskname)
 	if rc != 0:
@@ -241,7 +292,7 @@ def mount_iscsi_lun():
 		out.colorPrint('Couldn\'t create directory %s' % pathto, 'r')
 		exit(1)
 	print cout
-	out.colorPrint('%s was successfully created', 'g')
+	out.colorPrint('{} was successfully created\n'.format(pathto), 'g')
 
 	rc, cout = client.run('mount {} {}'.format(diskname, pathto))
 	print cout
@@ -253,13 +304,9 @@ def mount_iscsi_lun():
 	out.colorPrint('{} was successfully mounted to {}'.format(diskname, pathto),'g')
 
 cleanup_client()
-cleanup_service() # PASS
-cleanup_ctb() #PASS
-
-create_ctb() # PASS
-create_service() # PASS
-mount_iscsi_lun()
-
-cleanup_client()
 cleanup_service()
 cleanup_ctb()
+
+create_ctb()
+create_service()
+mount_iscsi_lun()
