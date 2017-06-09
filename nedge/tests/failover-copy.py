@@ -315,7 +315,7 @@ def run2():
 		client = SSHClient(client_host, client_username, client_password)
 
 		# Delete file from directory
-        	rc, cout = client.run('ps -ef | grep cp {}/{}'.format(pathto, filename))
+		rc, cout = client.run('ps -ef | grep cp {}/{}'.format(pathto, filename))
 		text = re.split('\n', cout)
 
 		for line in text:
