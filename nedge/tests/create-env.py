@@ -10,18 +10,19 @@ Written by Nikolay Popov
 
 """
 
-import re, time, sys, json
-
+import os, re, time, sys, json
 from multiprocessing import Process
 from functools import partial
 
-sys.path.append('/root/nedge/lib/')
+pathtofile = os.path.dirname(__file__) # Absolute path to where my script is
+
+sys.path.append(os.path.join(pathtofile, '../lib/'))
 from ssh_client import SSHClient
 from common import Output
 from common import Timeout
 
 # Getting config
-json_data_file = open('../config/config.json', 'r')
+json_data_file = open(os.path.join(pathtofile, '../config/config.json'), 'r')
 cfg = json.load(json_data_file)
 
 neadm_host = cfg['server']['host']
@@ -111,7 +112,6 @@ def cleanup_client():
 			match = re.search('(\S+)\s+on\s+({})\s+\w+\s+\w+\s+\S+'.format(pathto), line)
 			if match:
 				out.colorPrint('Found LUN \"{}\" mounted onto test filesystem \"{}\", cleanup is needed'.format(match.group(1), match.group(2)), 'r')
-				exit(1)
 				rc, cout = client.run('umount %s' % pathto)
 				print cout
 
@@ -158,30 +158,27 @@ def create_ctb():
 	rc, cout = client.run('/neadm/neadm cluster create {}'.format(cluster_name))
         if rc != 0:
                 print cout
-                out.colorPrint('Couldn\'t create cluster {}'.format(cluster_name), 'r')
+                out.colorPrint('Failed to create cluster {}'.format(cluster_name), 'r')
                 exit(1)
         print cout
-        out.colorPrint('Cluster {} was successfully created'.format(cluster_name),'g')
 
 	time.sleep(2)
 
 	rc, cout = client.run('/neadm/neadm tenant create {}/{}'.format(cluster_name, tenant_name))
         if rc != 0:
                 print cout
-                out.colorPrint('Couldn\'t create tenant {}/{}'.format(cluster_name, tenant_name), 'r')
+                out.colorPrint('Failed to create tenant {}/{}'.format(cluster_name, tenant_name), 'r')
                 exit(1)
         print cout
-        out.colorPrint('Tenant {}/{} was successfully created'.format(cluster_name, tenant_name),'g')
 
 	time.sleep(2)
 
 	rc, cout = client.run('/neadm/neadm bucket create {}/{}/{}'.format(cluster_name, tenant_name, bucket_name))
         if rc != 0:
                 print cout
-                out.colorPrint('Couldn\'t create bucket {}/{}/{}'.format(cluster_name, tenant_name, bucket_name), 'r')
+                out.colorPrint('Failed to create bucket {}/{}/{}'.format(cluster_name, tenant_name, bucket_name), 'r')
                 exit(1)
         print cout
-        out.colorPrint('Bucket {}/{}/{} was successfully created'.format(cluster_name, tenant_name, bucket_name),'g')
 
 def create_service():
 	client = SSHClient(neadm_host, neadm_username, neadm_password)
@@ -224,9 +221,17 @@ def create_service():
 	print cout
 
 	rc, cout = client.run('/neadm/neadm service enable %s' % service_name)
+	if rc != 0:
+		print cout
+		out.colorPrint('Error: unable to enable service: %s' % service_name, 'r')
+		exit(1)
 	print cout
 
 	rc, cout = client.run('/neadm/neadm iscsi create {} {}/{}/{}/{} {}{}'.format(service_name, cluster_name, tenant_name, bucket_name, lun_name, lun_size[0], lun_size[1]))
+	if rc != 0:
+		print cout
+		out.colorPrint('Error: unable to create LUN {}/{}/{}/{} with the size {}{}'.format(cluster_name, tenant_name, bucket_name, lun_name, lun_size[0], lun_size[1]), 'r')
+		exit(1)
 	print cout
 
 def mount_iscsi_lun():
