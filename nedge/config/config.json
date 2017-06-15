@@ -6,7 +6,8 @@
 		"filename": "testfile",
 		"pathfrom": "/root",
 		"pathto": "/root/test",
-		"runtimes": 1
+		"runtimes": 1,
+		"failtimes": 10
 	},
 	"server": {
 		"host": "10.10.10.2",
@@ -24,6 +25,7 @@
 		"tenant": "testtn",
 		"bucket": "testbk",
 		"lun_name": "testlun",
-		"lun_size": ["100", "GB"]
+		"lun_size": ["100", "GB"],
+		"log": "/root/mylog.log"
 	}
 }
